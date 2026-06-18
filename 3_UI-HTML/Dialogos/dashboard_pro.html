@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root { --verde: #00923F; --amarelo: #F4C430; --vermelho: #D32F2F; --bg: #F4F6F8; --card: #FFF; --txt: #333; }
+    body { font-family: 'Montserrat', sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 20px 20px 60px 20px; }
+    
+    /* TABS */
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #E0E0E0; padding-bottom: 10px; }
+    .tab { padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; color: #666; transition: 0.3s; }
+    .tab.active { background: var(--verde); color: white; }
+    .tab:hover:not(.active) { background: #e0e0e0; }
+
+    /* TOOLBAR */
+    .toolbar { display: flex; justify-content: space-between; background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .filters { display: flex; gap: 10px; align-items: center; }
+    select, button, input { padding: 8px; border: 1px solid #E0E0E0; border-radius: 4px; }
+    .btn-up { background: var(--verde); color: white; border: none; font-weight: bold; cursor: pointer; }
+    #div-datas { display: none; align-items: center; gap: 5px; }
+
+    /* CARDS */
+    .bank-strip { display: flex; gap: 15px; margin-bottom: 20px; }
+    .bank-card { flex: 1; background: var(--card); padding: 15px; border-radius: 8px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .bank-card.cora { border-color: #FE4657; } 
+    .bank-card.asaas { border-color: #00449E; } 
+    .bank-card.stone { border-color: #00A651; } 
+    .bank-card.total { border-color: var(--amarelo); background: #FFFDE7; }
+    .bank-label { font-size: 11px; text-transform: uppercase; color: #666; font-weight: 700; }
+    .bank-val { font-size: 18px; font-weight: 700; margin-top: 5px; }
+
+    /* KPIS */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .kpi-card { background: var(--card); padding: 15px; border-radius: 8px; position: relative; }
+    .kpi-head { font-size: 11px; text-transform: uppercase; color: #888; }
+    .kpi-main { font-size: 20px; font-weight: 700; color: var(--verde); margin: 5px 0; }
+    .kpi-sub { font-size: 11px; color: #555; border-top: 1px solid #eee; padding-top: 5px; margin-top: 5px; line-height: 1.4; }
+    .neg { color: var(--vermelho) !important; }
+
+    /* GRÁFICOS */
+    .charts-column { display: flex; flex-direction: column; gap: 25px; margin-bottom: 20px; }
+    .chart-block { background: var(--card); padding: 25px; border-radius: 8px; height: 500px; width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .chart-title { margin: 0 0 15px 0; color: #444; font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+
+    /* TABELAS */
+    .data-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; margin-bottom: 20px; }
+    .data-table th { background: #f0f0f0; text-align: left; padding: 12px; font-size: 12px; color: #555; border-bottom: 2px solid #ddd; }
+    .data-table td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+    .row-group { font-weight: 700; background: #fafafa; cursor: pointer; }
+    .row-group:hover { background: #e0e0e0; }
+    .row-sub { display: none; cursor: pointer; background: #fff; }
+    .row-sub:hover { background: #f9f9f9; }
+    .row-sub td:first-child { padding-left: 30px; color: #444; font-weight: 600; }
+    .row-detail { background: #fffde7; font-size: 11px; color: #666; font-style: italic; display: none; }
+    .row-detail td:first-child { padding-left: 60px; }
+
+    /* DRE CONTÁBIL (Sticky) */
+    .tbl-container { overflow-x: auto; max-width: 100%; background: #fff; border-radius: 8px; }
+    .tbl-contabil { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1200px; }
+    .tbl-contabil th { background: #f8f9fa; color: #444; font-weight: 700; padding: 8px 10px; font-size: 11px; text-transform: uppercase; border-bottom: 2px solid #ccc; text-align: right; position: sticky; top: 0; z-index: 10; }
+    .tbl-contabil th:first-child, .tbl-contabil td:first-child { position: sticky; left: 0; z-index: 11; background: #fff; border-right: 2px solid #eee; text-align: left; min-width: 250px; }
+    .tbl-contabil th:first-child { z-index: 12; background: #f8f9fa; }
+    .tbl-contabil td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 11px; text-align: right; font-family: 'Consolas', monospace; color: #555; }
+    .dre-row-total { background-color: #E8F5E9 !important; font-weight: bold; color: #2E7D32 !important; }
+    .dre-row-total td:first-child { background-color: #E8F5E9 !important; }
+    .dre-row-header { background-color: #FFF3E0 !important; font-weight: 700; color: #EF6C00 !important; }
+    .dre-row-header td:first-child { background-color: #FFF3E0 !important; }
+
+    .view-section { display: none; } 
+    .view-section.visible { display: block; }
+    .footer-info { text-align: center; font-size: 12px; color: #777; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; }
+  </style>
+</head>
+<body>
+  
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('dashboard')">Visão Geral</div>
+    <div class="tab" onclick="switchTab('dre')">DRE Analítico</div>
+    <div class="tab" onclick="switchTab('contabil')">DRE Contábil (Mensal)</div>
+    <div class="tab" onclick="switchTab('dfc')">Fluxo de Caixa</div>
+  </div>
+
+  <div class="toolbar">
+    <div style="font-weight:700; color:var(--verde); font-size: 18px;">GFMB 5.0 Enterprise</div>
+    <div class="filters">
+      <select id="filtro-conta">
+        <option value="TODAS">Todas as Contas</option>
+        <option value="CORA">Cora</option>
+        <option value="ASAAS">Asaas</option>
+        <option value="STONE">Stone</option>
+      </select>
+      <select id="filtro-periodo" onchange="toggleDatas()">
+        <option value="MES_ATUAL">Mês Atual</option>
+        <option value="MES_ANTERIOR">Mês Anterior</option>
+        <option value="ANO">Ano Acumulado</option>
+        <option value="CUSTOM">Personalizado...</option>
+      </select>
+      <div id="div-datas">
+        <input type="date" id="dt-ini"><input type="date" id="dt-fim">
+      </div>
+      <button class="btn-up" onclick="loadData()">Atualizar</button>
+    </div>
+  </div>
+  
+  <div id="loader" style="text-align:center; padding:50px; display:none; color:#999;">Carregando dados...</div>
+  <div id="error-msg" style="text-align:center; padding:20px; display:none; color:red;"></div>
+  
+  <div id="view-dashboard" class="view-section visible">
+    <div class="bank-strip">
+      <div class="bank-card cora"><div class="bank-label">Cora</div><div class="bank-val" id="bal-cora">...</div></div>
+      <div class="bank-card asaas"><div class="bank-label">Asaas</div><div class="bank-val" id="bal-asaas">...</div></div>
+      <div class="bank-card stone"><div class="bank-label">Stone</div><div class="bank-val" id="bal-stone">...</div></div>
+      <div class="bank-card total"><div class="bank-label">Caixa Total</div><div class="bank-val" id="bal-total">...</div></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-head">Receita Total</div><div class="kpi-main" id="kpi-rec">...</div><div class="kpi-sub"><span id="max-rec-val"></span> <span id="max-rec-desc"></span></div></div>
+      <div class="kpi-card"><div class="kpi-head">Despesas Totais</div><div class="kpi-main neg" id="kpi-des">...</div><div class="kpi-sub"><span id="max-des-val" class="neg"></span> <span id="max-des-desc"></span></div></div>
+      <div class="kpi-card"><div class="kpi-head">Resultado Op.</div><div class="kpi-main" id="kpi-res">...</div><div class="kpi-sub">Margem: <span id="kpi-margem">...</span></div></div>
+      <div class="kpi-card"><div class="kpi-head">Maior Custo</div><div class="kpi-main neg" id="kpi-seg-des" style="font-size:16px;">...</div><div class="kpi-sub"><span id="kpi-seg-des-val">...</span></div></div>
+    </div>
+    
+    <div class="charts-column">
+      <div class="chart-block">
+        <div class="chart-title">🔻 TOP 10 DESPESAS</div>
+        <canvas id="chartPie"></canvas>
+      </div>
+      <div class="chart-block">
+        <div class="chart-title">💚 TOP 10 CLIENTES</div>
+        <canvas id="chartBar"></canvas>
+      </div>
+    </div>
+    <div class="footer-info">Período: <span id="txt-periodo">...</span></div>
+  </div>
+
+  <div id="view-dre" class="view-section">
+    <table class="data-table">
+        <thead><tr><th>Hierarquia</th><th style="text-align:right">Valor</th></tr></thead>
+        <tbody id="dre-body"></tbody>
+    </table>
+  </div>
+
+  <div id="view-contabil" class="view-section">
+    <div class="tbl-container">
+      <table class="tbl-contabil" id="tbl-contabil"></table>
+    </div>
+  </div>
+
+  <div id="view-dfc" class="view-section">
+    <table class="data-table">
+      <thead><tr><th>Fluxo de Caixa</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody id="dfc-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    Chart.register(ChartDataLabels);
+    let pieChart, barChart;
+    
+    function switchTab(id) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[onclick="switchTab('${id}')"]`).classList.add('active');
+      document.querySelectorAll('.view-section').forEach(s => s.classList.remove('visible'));
+      document.getElementById('view-' + id).classList.add('visible');
+    }
+    
+    function toggleDatas() { document.getElementById('div-datas').style.display = (document.getElementById('filtro-periodo').value === 'CUSTOM') ? 'flex' : 'none'; }
+    
+    function loadData() {
+      document.getElementById('loader').style.display = 'block';
+      document.getElementById('error-msg').style.display = 'none';
+      const p = document.getElementById('filtro-periodo').value;
+      const d1 = document.getElementById('dt-ini').value;
+      const d2 = document.getElementById('dt-fim').value;
+      const c = document.getElementById('filtro-conta').value;
+      google.script.run.withSuccessHandler(renderAll).withFailureHandler(onFail).PRO_DASHBOARD_getData(p, d1, d2, c);
+    }
+    
+    function onFail(err) {
+       document.getElementById('loader').style.display = 'none';
+       document.getElementById('error-msg').innerText = "Erro: " + err.message;
+       document.getElementById('error-msg').style.display = 'block';
+    }
+    
+    function renderAll(data) {
+      document.getElementById('loader').style.display = 'none';
+      setText('bal-cora', data.saldos.cora); setText('bal-asaas', data.saldos.asaas);
+      setText('bal-stone', data.saldos.stone); setText('bal-total', data.saldos.geral);
+      setText('kpi-rec', data.kpis.receita); setText('kpi-des', data.kpis.despesa);
+      setText('kpi-res', data.kpis.resultado); 
+      document.getElementById('kpi-res').className = (data.kpis.resultadoVal >= 0) ? "kpi-main" : "kpi-main neg";
+      setText('kpi-margem', data.kpis.margem);
+      setText('max-rec-val', data.kpis.maiorRecItem.val); setText('max-rec-desc', data.kpis.maiorRecItem.desc);
+      setText('max-des-val', data.kpis.maiorDespItem.val); setText('max-des-desc', data.kpis.maiorDespItem.desc);
+      setText('kpi-seg-des', data.kpis.maiorDespSeg.nome); setText('kpi-seg-des-val', data.kpis.maiorDespSeg.val);
+      setText('txt-periodo', data.meta.periodo);
+      
+      renderCharts(data.graficos);
+      renderDRE(data.dre);
+      renderContabil(data.dreContabil);
+      renderDFC(data.dfc);
+    }
+
+    function wrapLabel(str, maxChars) {
+       if (!str) return [];
+       let clean = str.replace(/^[\d\.\s—-]+/, "");
+       if (clean.length <= maxChars) return clean;
+       const words = clean.split(" ");
+       const lines = [];
+       let currentLine = words[0];
+       for (let i = 1; i < words.length; i++) {
+           if (currentLine.length + 1 + words[i].length <= maxChars) currentLine += " " + words[i];
+           else { lines.push(currentLine); currentLine = words[i]; }
+       }
+       lines.push(currentLine);
+       return lines;
+    }
+
+    function renderCharts(g) {
+       const despArray = Object.values(g.despesas).map(i => ({ label: i.nome, value: Math.abs(i.valor) })).sort((a, b) => b.value - a.value).slice(0, 10); 
+       const despLabels = despArray.map(i => wrapLabel(i.label, 45));
+       createBarChart('chartPie', despArray, despLabels, '#D32F2F', 'Despesas');
+       
+       const cliArray = Object.entries(g.clientes).map(([k,v]) => ({ label: k, value: v })).sort((a, b) => b.value - a.value).slice(0, 10);
+       const cliLabels = cliArray.map(i => wrapLabel(i.label, 45));
+       createBarChart('chartBar', cliArray, cliLabels, '#00923F', 'Clientes');
+    }
+
+    function createBarChart(id, dataArr, labelsArr, color, label) {
+       const ctx = document.getElementById(id).getContext('2d');
+       if (id === 'chartPie' && pieChart) pieChart.destroy();
+       if (id === 'chartBar' && barChart) barChart.destroy();
+
+       const chart = new Chart(ctx, { 
+         type: 'bar', 
+         data: { 
+           labels: labelsArr, 
+           datasets: [{ label: label, data: dataArr.map(i => i.value), backgroundColor: color, borderRadius: 4, barPercentage: 0.6 }] 
+         }, 
+         options: {
+           indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 50 } },
+           plugins: { 
+             legend: { display: false },
+             datalabels: { anchor: 'end', align: 'end', formatter: v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }), font: { weight: 'bold', size: 10 }, color: '#555' }
+           },
+           scales: { x: { ticks: { callback: v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',notation:"compact"}) }, grid: { color: '#f0f0f0' } }, y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } } }
+         } 
+       });
+       if (id === 'chartPie') pieChart = chart;
+       if (id === 'chartBar') barChart = chart;
+    }
+
+    function renderDRE(tree) {
+      const tbody = document.getElementById('dre-body'); tbody.innerHTML = "";
+      ["01", "02", "03"].forEach(k => {
+        if(tree[k]) {
+          tbody.insertAdjacentHTML('beforeend', `<tr class="row-group" onclick="toggleLevel(this, 'sub')"><td>▶ ${tree[k].nome}</td><td style="text-align:right;font-weight:bold">${_fmt(tree[k].valor)}</td></tr>`);
+          const filhos = Object.values(tree[k].filhos).sort((a,b) => Math.abs(b.valor) - Math.abs(a.valor));
+          filhos.forEach(sub => {
+             const subId = "sub-" + Math.random().toString(36).substr(2, 9);
+             tbody.insertAdjacentHTML('beforeend', `<tr class="row-sub" style="display:none" onclick="toggleLevel(this, '${subId}')"><td>• ${sub.nome}</td><td style="text-align:right">${_fmt(sub.valor)}</td></tr>`);
+             if(sub.items && sub.items.length > 0) {
+                sub.items.sort((a,b) => Math.abs(b.val) - Math.abs(a.val));
+                sub.items.forEach(it => {
+                   tbody.insertAdjacentHTML('beforeend', `<tr class="row-detail ${subId}" style="display:none"><td>${it.dt} - ${it.desc}</td><td style="text-align:right">${_fmt(it.val)}</td></tr>`);
+                });
+             }
+          });
+        }
+      });
+    }
+
+    function toggleLevel(row, className) {
+        if (className === 'sub') {
+            let next = row.nextElementSibling;
+            while(next && !next.classList.contains('row-group')) {
+                if(next.classList.contains('row-sub')) next.style.display = (next.style.display === 'none') ? 'table-row' : 'none';
+                else if (next.classList.contains('row-detail') && row.nextElementSibling.style.display === 'none') next.style.display = 'none';
+                next = next.nextElementSibling;
+            }
+        } else {
+            const details = document.getElementsByClassName(className);
+            for(let d of details) d.style.display = (d.style.display === 'none') ? 'table-row' : 'none';
+        }
+    }
+
+    function renderContabil(matrix) {
+       const tbl = document.getElementById('tbl-contabil');
+       const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Total"];
+       let headHTML = "<thead><tr><th>Conta Contábil</th>";
+       meses.forEach(m => headHTML += `<th>${m}</th>`);
+       headHTML += "</tr></thead><tbody>";
+       
+       const keys = Object.keys(matrix).sort();
+       let totalReceita = Array(12).fill(0), totalDespesa = Array(12).fill(0);
+
+       // 1. Receitas
+       headHTML += `<tr class="dre-row-header"><td colspan="14">1. RECEITAS OPERACIONAIS</td></tr>`;
+       keys.filter(k => k.startsWith("01")).forEach(c => {
+          let rowHTML = `<tr><td>${c.replace(/^[\d\.\s—-]+/, "")}</td>`;
+          let somaLinha = 0;
+          matrix[c].forEach((val, i) => { 
+              rowHTML += `<td>${val !== 0 ? _fmt(val) : '-'}</td>`; 
+              somaLinha += val; totalReceita[i] += val; 
+          });
+          rowHTML += `<td style="font-weight:bold">${_fmt(somaLinha)}</td></tr>`;
+          headHTML += rowHTML;
+       });
+       
+       let rowTotRec = `<tr class="dre-row-total"><td>(=) RECEITA BRUTA</td>`;
+       let sumRec = 0;
+       totalReceita.forEach(v => { rowTotRec += `<td>${_fmt(v)}</td>`; sumRec += v; });
+       rowTotRec += `<td>${_fmt(sumRec)}</td></tr>`;
+       headHTML += rowTotRec;
+
+       // 2. Despesas
+       headHTML += `<tr class="dre-row-header"><td colspan="14">2. CUSTOS E DESPESAS</td></tr>`;
+       keys.filter(k => k.startsWith("02") || k.startsWith("03")).forEach(c => {
+          let rowHTML = `<tr><td>${c.replace(/^[\d\.\s—-]+/, "")}</td>`;
+          let somaLinha = 0;
+          matrix[c].forEach((val, i) => { 
+              rowHTML += `<td>${val !== 0 ? _fmt(val) : '-'}</td>`; 
+              somaLinha += val; totalDespesa[i] += val; 
+          });
+          rowHTML += `<td style="font-weight:bold">${_fmt(somaLinha)}</td></tr>`;
+          headHTML += rowHTML;
+       });
+
+       let rowTotDesp = `<tr class="dre-row-total"><td>(=) TOTAL DESPESAS</td>`;
+       let sumDesp = 0;
+       totalDespesa.forEach(v => { rowTotDesp += `<td>${_fmt(v)}</td>`; sumDesp += v; });
+       rowTotDesp += `<td>${_fmt(sumDesp)}</td></tr>`;
+       headHTML += rowTotDesp;
+
+       // 3. Resultado
+       let rowResult = `<tr class="dre-row-total" style="background:#212121 !important; color:#fff !important;"><td>(=) RESULTADO LÍQUIDO</td>`;
+       let sumRes = 0;
+       for(let i=0; i<12; i++) {
+           let resMes = totalReceita[i] + totalDespesa[i];
+           rowResult += `<td>${_fmt(resMes)}</td>`;
+           sumRes += resMes;
+       }
+       rowResult += `<td>${_fmt(sumRes)}</td></tr>`;
+       headHTML += rowResult;
+       tbl.innerHTML = headHTML + "</tbody>";
+    }
+
+    function renderDFC(dfc) {
+       document.getElementById('dfc-body').innerHTML = `
+         <tr><td>Saldo Inicial (Estimado)</td><td style="text-align:right; color:#666;">${_fmt(dfc.saldoInicial)}</td></tr>
+         <tr><td>(+) Entradas Operacionais</td><td style="text-align:right; color:#2E7D32;">${_fmt(dfc.entradas)}</td></tr>
+         <tr><td>(-) Saídas Operacionais</td><td style="text-align:right; color:#C62828;">${_fmt(dfc.saidas)}</td></tr>
+         <tr style="background:#E8F5E9;font-weight:bold"><td>(=) Geração de Caixa</td><td style="text-align:right">${_fmt(dfc.resultado)}</td></tr>
+         <tr style="font-weight:bold;border-top:2px solid #333"><td>Saldo Final (Caixa)</td><td style="text-align:right">${_fmt(dfc.saldoInicial + dfc.resultado)}</td></tr>
+       `;
+    }
+
+    function _fmt(v) { return v ? v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : 'R$ 0,00'; }
+    function setText(id, val) { const el = document.getElementById(id); if(el) el.innerText = val; }
+    window.onload = loadData;
+  </script>
+</body>
+</html>

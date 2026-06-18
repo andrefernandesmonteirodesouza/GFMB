@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: Roboto, sans-serif; padding: 20px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #ddd; }
+    input { padding: 6px; border: 1px solid #ccc; border-radius: 3px; }
+    .btn { background: #27ae60; padding: 10px 15px; color: white; border: none; cursor: pointer; margin-top: 20px; }
+    .smart-notice { background-color: #E3F2FD; border-left: 4px solid #2196F3; padding: 15px; margin-bottom: 20px; color: #0D47A1; display: none; }
+  </style>
+</head>
+<body>
+<h2>💳 Detalhar Fatura</h2>
+<div id="smartNotice" class="smart-notice"></div>
+<p><b>Data:</b> <?= dados.dataFatura ?> | <b>ID:</b> <?= dados.hash ?></p>
+
+<div style="margin-top:15px; padding:12px; background:#eef6ff; border-radius:8px; width:450px;">
+  <p><b>Total:</b> R$ <span id="totalFatura"><?= Number(dados.totalFatura).toLocaleString('pt-BR',{minimumFractionDigits:2}) ?></span></p>
+  <p><b>Detalhado:</b> R$ <span id="detalhado">0,00</span></p>
+  <p><b>Falta:</b> R$ <span id="falta">0,00</span></p>
+</div>
+<br>
+<table id="tbl">
+  <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Parc.</th><th>Total</th><th>Rubrica</th><th></th></tr></thead>
+  <tbody>
+    <tr style="display:none" id="rowTemplate">
+      <td><input type="text" class="dt" placeholder="dd/mm/yy" oninput="maskDate(this)"></td>
+      <td><input type="text" style="width:180px;"></td>
+      <td><input type="text" oninput="maskValor(this); updateTotals()" style="width:70px;"></td>
+      <td><input type="text" style="width:50px;"></td>
+      <td><input type="text" style="width:50px;"></td>
+      <td><input type="text" class="rubrica-input" list="listaRubricas" style="width:390px;"></td>
+      <td><button type="button" onclick="removeRow(this)">❌</button></td>
+    </tr>
+  </tbody>
+</table>
+<br>
+<button onclick="addNewRow()">➕ Linha</button>
+<button class="btn" onclick="save()">Salvar</button>
+<datalist id="listaRubricas"></datalist>
+
+<script>
+const encodedPayload = "<?= dados.payload64 ?>";
+let serverSuggestion = null;
+try { if (encodedPayload) serverSuggestion = JSON.parse(decodeURIComponent(escape(window.atob(encodedPayload)))); } catch (e) {}
+
+window.onload = function() {
+  google.script.run.withSuccessHandler(l => {
+     l.forEach(r => { const o = document.createElement("option"); o.value = r; document.getElementById("listaRubricas").appendChild(o); });
+  }).PRO_CARTAO_listarRubricas();
+
+  if (serverSuggestion && serverSuggestion.items && serverSuggestion.items.length > 0) {
+      const notice = document.getElementById('smartNotice');
+      notice.style.display = 'block';
+      notice.innerHTML = `<b>${serverSuggestion.msg}</b>`;
+      serverSuggestion.items.forEach(item => addRowWithData(item));
+      if (serverSuggestion.mode === "SMART") addNewRow();
+  } else {
+      for (let i = 0; i < 5; i++) addNewRow();
+  }
+  updateTotals();
+};
+
+function addNewRow() { addRowWithData(null); }
+function addRowWithData(data) {
+  let tbl = document.querySelector("#tbl tbody");
+  let tr = document.getElementById("rowTemplate").cloneNode(true);
+  tr.style.display = ""; tr.removeAttribute("id");
+  const inputs = tr.querySelectorAll("input");
+  if (data) {
+      inputs[0].value = data.dataCompra || ""; 
+      inputs[1].value = data.desc || "";
+      if (data.val) inputs[2].value = data.val.toLocaleString("pt-BR", {minimumFractionDigits: 2});
+      inputs[3].value = data.parcela || "";
+      inputs[4].value = data.total || "";
+      inputs[5].value = data.rubrica || "";
+  }
+  tr.querySelector(".dt").oninput = function() { maskDate(this); };
+  inputs[2].oninput = function() { maskValor(this); };
+  tbl.appendChild(tr);
+}
+
+function maskDate(inp) {
+  let v = inp.value.replace(/\D/g, "");
+  if (v.length >= 5) inp.value = v.slice(0,2) + "/" + v.slice(2,4) + "/" + v.slice(4,6);
+  else if (v.length >= 3) inp.value = v.slice(0,2) + "/" + v.slice(2,4);
+  else inp.value = v;
+}
+
+function maskValor(inp) {
+  let v = inp.value.replace(/\D/g, "");
+  if (v === "") { inp.value = ""; return; }
+  let int = v.slice(0, -2) || "0", dec = v.slice(-2);
+  inp.value = Number(int).toLocaleString("pt-BR") + "," + dec;
+  updateTotals();
+}
+
+function removeRow(btn) { btn.parentElement.parentElement.remove(); updateTotals(); }
+
+function save() {
+  const lista = [];
+  document.querySelectorAll("#tbl tbody tr:not(#rowTemplate)").forEach(tr => {
+    const t = tr.querySelectorAll("input");
+    if (t[2].value) lista.push({ dataCompra: t[0].value, descricao: t[1].value, valor: t[2].value, parcelaAtual: t[3].value, parcelaTotal: t[4].value, rubrica: t[5].value });
+  });
+  google.script.run.withSuccessHandler(() => google.script.host.close()).PRO_CARTAO_saveDetails(lista, <?= dados.hash ?>, "<?= dados.dataFatura ?>");
+}
+
+function updateTotals() {
+  let total = Math.abs(Number("<?= dados.totalFatura ?>"));
+  let soma = 0;
+  document.querySelectorAll('#tbl tbody tr:not(#rowTemplate)').forEach(tr => {
+    let raw = tr.querySelectorAll("input")[2].value || "";
+    let n = parseFloat(raw.replace(/\./g,"").replace(",","."));
+    if (!isNaN(n)) soma += Math.abs(n);
+  });
+  document.getElementById("detalhado").innerText = soma.toLocaleString("pt-BR",{minimumFractionDigits:2});
+  document.getElementById("falta").innerText = (total - soma).toLocaleString("pt-BR",{minimumFractionDigits:2});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Roboto', sans-serif; background-color: #f4f6f8; color: #333; padding: 20px; }
+      .header { border-bottom: 2px solid #274472; padding-bottom: 10px; margin-bottom: 20px; }
+      h2 { margin: 0; color: #274472; font-size: 18px; }
+      
+      .info-box { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; }
+      .info-label { font-weight: bold; color: #7f8c8d; font-size: 11px; text-transform: uppercase; }
+      
+      .split-area { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); min-height: 200px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+      th { text-align: left; font-size: 12px; color: #7f8c8d; padding: 8px 5px; border-bottom: 1px solid #eee; }
+      input { width: 100%; padding: 8px; border: 1px solid #dfe6e9; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
+      input:focus { border-color: #274472; outline: none; }
+      input.error { border-color: #e74c3c; background-color: #fff5f5; }
+      
+      .btn-add { background-color: #eef2f7; color: #274472; border: 1px dashed #274472; width: 100%; padding: 10px; border-radius: 6px; cursor: pointer; }
+      .footer { margin-top: 25px; }
+      .summary-dashboard { display: flex; justify-content: space-between; background: #2c3e50; color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+      .sum-item { text-align: center; flex: 1; }
+      .sum-value { font-size: 18px; font-weight: 700; }
+      .status-ok { color: #2ecc71; } .status-warn { color: #e74c3c; }
+      .btn-confirm { background-color: #27ae60; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: bold; cursor: pointer; opacity: 0.6; pointer-events: none; }
+      .btn-confirm.active { opacity: 1; pointer-events: auto; }
+      .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); display: flex; justify-content: center; align-items: center; z-index: 100; }
+    </style>
+  </head>
+  <body>
+    <div class="header"><h2>✂️ Dividir Lançamento</h2></div>
+    <div class="info-box">
+      <div><span class="info-label">Descrição</span><br><?= dados.desc ?></div>
+      <div><span class="info-label">Data</span><br><?= new Date(dados.data).toLocaleDateString('pt-BR') ?></div>
+    </div>
+
+    <div class="split-area">
+      <div id="loading" class="loading-overlay">Carregando rubricas...</div>
+      <table>
+        <thead><tr><th style="width: 65%">Rubrica</th><th style="width: 25%">Valor (R$)</th><th style="width: 10%"></th></tr></thead>
+        <tbody id="lista-partes"></tbody>
+      </table>
+      <button id="btn-add" class="btn-add" onclick="adicionarLinha()" style="display:none;">+ Adicionar Item</button>
+      <datalist id="lista-rubricas-global"></datalist>
+    </div>
+
+    <div class="footer">
+      <div class="summary-dashboard">
+        <div class="sum-item"><div class="sum-label">Original</div><div class="sum-value">R$ <span id="disp-original">0.00</span></div></div>
+        <div class="sum-item"><div class="sum-label">Lançado</div><div class="sum-value">R$ <span id="disp-lancado">0.00</span></div></div>
+        <div class="sum-item"><div class="sum-label">Diferença</div><div class="sum-value status-warn" id="disp-diff">R$ 0.00</div></div>
+      </div>
+      <button id="btn-salvar" class="btn-confirm" onclick="salvarSplit()">Confirmar Divisão</button>
+    </div>
+
+    <script>
+      const VALOR_ORIGINAL = Number(<?= dados.valorAbs ?>) || 0;
+      let RUBRICAS_SET = new Set(); 
+
+      function init() {
+        document.getElementById('disp-original').innerText = VALOR_ORIGINAL.toFixed(2);
+        document.getElementById('disp-diff').innerText = "R$ " + VALOR_ORIGINAL.toFixed(2);
+        google.script.run.withSuccessHandler(carregarLista).withFailureHandler(e => document.getElementById('loading').innerText = "Erro").PRO_SPLIT_getRubricas();
+      }
+
+      function carregarLista(lista) {
+        RUBRICAS_SET = new Set(lista);
+        const dl = document.getElementById('lista-rubricas-global');
+        lista.forEach(r => { const opt = document.createElement('option'); opt.value = r; dl.appendChild(opt); });
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('btn-add').style.display = 'block';
+        adicionarLinha(); adicionarLinha();
+      }
+
+      function adicionarLinha() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" class="input-rubrica" list="lista-rubricas-global" placeholder="Buscar..." onchange="validarInput(this)"></td>
+          <td><input type="number" step="0.01" class="input-valor" placeholder="0.00" oninput="atualizarTotal()"></td>
+          <td><button onclick="this.closest('tr').remove(); atualizarTotal();">✕</button></td>`;
+        document.getElementById('lista-partes').appendChild(tr);
+      }
+
+      function validarInput(input) {
+        if (input.value && !RUBRICAS_SET.has(input.value)) input.classList.add('error');
+        else input.classList.remove('error');
+      }
+
+      function atualizarTotal() {
+        let soma = 0;
+        document.querySelectorAll('.input-valor').forEach(inp => soma += Number(inp.value || 0));
+        document.getElementById('disp-lancado').innerText = soma.toFixed(2);
+        
+        const diff = VALOR_ORIGINAL - soma;
+        const elDiff = document.getElementById('disp-diff');
+        const btn = document.getElementById('btn-salvar');
+        
+        if (Math.abs(diff) < 0.01) {
+          elDiff.innerText = "OK"; elDiff.className = "sum-value status-ok";
+          btn.classList.add('active'); btn.innerText = "Confirmar Divisão";
+        } else {
+          btn.classList.remove('active');
+          if (diff > 0) { elDiff.innerText = "Falta " + diff.toFixed(2); elDiff.className = "sum-value status-warn"; }
+          else { elDiff.innerText = "Passou " + Math.abs(diff).toFixed(2); }
+        }
+      }
+
+      function salvarSplit() {
+        const partes = [];
+        let erro = false;
+        document.querySelectorAll('#lista-partes tr').forEach(tr => {
+           const r = tr.querySelector('.input-rubrica').value;
+           const v = Number(tr.querySelector('.input-valor').value);
+           if (!r || !RUBRICAS_SET.has(r)) { tr.querySelector('.input-rubrica').classList.add('error'); erro = true; }
+           if (v <= 0) erro = true;
+           partes.push({ rubrica: r, valorAbs: v });
+        });
+        if (erro) return alert("Verifique erros.");
+        
+        document.getElementById('btn-salvar').innerText = "Salvando...";
+        google.script.run.withSuccessHandler(() => google.script.host.close()).PRO_SPLIT_execute({ row: <?= dados.row ?>, partes: partes });
+      }
+      window.onload = init;
+    </script>
+  </body>
+</html>

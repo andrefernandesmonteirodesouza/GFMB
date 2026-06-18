@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Roboto', sans-serif; padding: 0; margin: 0; background: #f4f6f8; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .header-panel { padding: 15px 20px; background: #fff; border-bottom: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    h2 { margin: 0; color: #274472; font-size: 18px; }
+    
+    .stats { font-size: 13px; color: #444; margin-top: 2px; }
+    
+    /* Container da Tabela com Scroll */
+    .table-container { flex: 1; overflow: auto; padding: 0; }
+    
+    table { width: 100%; border-collapse: collapse; min-width: 800px; table-layout: fixed; }
+    
+    /* Cabeçalho Sticky */
+    thead { position: sticky; top: 0; background: #f8f9fa; z-index: 20; }
+    
+    th { 
+      text-align: left; padding: 12px 10px; font-size: 12px; 
+      color: #555; font-weight: 700; border-bottom: 2px solid #ddd; 
+      border-right: 1px solid #eee; cursor: pointer; user-select: none; position: relative; 
+    }
+    
+    /* 🔥 CSS PARA REDIMENSIONAR COLUNAS */
+    th.resizable { resize: horizontal; overflow: hidden; }
+    th:hover { background-color: #e9ecef; }
+
+    td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    tr:hover td { background-color: #f1f5f9; }
+    .selected-row td { background-color: #d2e6ff !important; }
+    
+    .btn { padding: 10px 24px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-primary { background: #27ae60; color:white; float: right; margin-top: 10px; }
+    
+    input.rubrica-input { width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; font-size: 13px; padding: 6px 4px; }
+    input.rubrica-input:focus { border: 1px solid #274472; background: #fff; }
+    
+    .val { text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="header-panel">
+    <h2>✅ Revisão de Sugestões</h2>
+    <div class="stats">
+      <strong id="total-count"><?= dados.list.length ?></strong> itens sugeridos pela IA.
+    </div>
+    <div class="stats" id="selected-stats">
+      Selecionados: <strong id="selected-count">0</strong> / <strong id="selected-total"><?= dados.list.length ?></strong>
+    </div>
+    <button class="btn btn-primary" onclick="confirmAll()">Confirmar Todos</button>
+    <div style="clear: both;"></div>
+  </div>
+
+  <div class="table-container">
+    <table id="main-table">
+      <thead>
+        <tr>
+          <th style="text-align:center; width:35px; min-width:35px; max-width:35px; cursor: default;">
+            <input type="checkbox" checked onclick="toggleAll(this)">
+          </th>
+          <th style="text-align:left; width:90px; min-width:90px; max-width:90px;" onclick="sortTable(1, 'date')">
+            Data ⇕
+          </th>
+          
+          <th class="resizable" style="min-width:300px; width:450px;" onclick="sortTable(2, 'text')">
+            Descrição ⇕
+          </th>
+          <th class="resizable" style="text-align:right; min-width:100px; width:120px;" onclick="sortTable(3, 'number')">
+            Valor ⇕
+          </th>
+          <th class="resizable" style="min-width:250px; width:400px;" onclick="sortTable(4, 'text')">
+            Rubrica ⇕
+          </th>
+        </tr>
+      </thead>
+      <tbody id="table-body">
+        <? for (var i = 0; i < dados.list.length; i++) { var item = dados.list[i]; ?>
+        <tr class="row-item" data-row-id="<?= item.rowIndex ?>" style="border-left:4px solid <?= item.color ?>; background-color: <?= item.color ?>1A;">
+          <td style="text-align:center"><input type="checkbox" class="chk-item" checked value="<?= item.rowIndex ?>"></td>
+          <td data-val="<?= item.dataStamp ?>"><?= item.dataDisplay ?></td>
+          <td title="<?= item.desc ?>"><?= item.desc ?></td>
+          <td class="val" data-val="<?= item.valor ?>"><?= Number(item.valor).toLocaleString('pt-BR',{minimumFractionDigits:2}) ?></td>
+          <td style="overflow: hidden; padding: 0 8px;">
+            <input type="text" class="rubrica-input" value="<?= item.rubrica ?>" list="lista-rubricas" data-row-id="<?= item.rowIndex ?>">
+          </td>
+        </tr>
+        <? } ?>
+      </tbody>
+    </table>
+  </div>
+  
+  <datalist id="lista-rubricas"></datalist>
+
+  <script>
+    window.onload = function() {
+        updateSelectedCounter();
+        google.script.run.withSuccessHandler(function(lista) {
+            const dl = document.getElementById('lista-rubricas');
+            lista.forEach(r => { const opt = document.createElement('option'); opt.value = r; dl.appendChild(opt); });
+        }).PRO_REVIEW_getRubricas();
+    };
+
+    function updateSelectedCounter() {
+      document.getElementById("selected-count").innerText = document.querySelectorAll('.chk-item:checked').length;
+    }
+
+    function toggleAll(master) {
+      document.querySelectorAll('.chk-item').forEach(c => { c.checked = master.checked; updateRowSelection(c.closest("tr"), c.checked); });
+      updateSelectedCounter();
+    }
+
+    function confirmAll() {
+      const rows = document.querySelectorAll(".row-item");
+      const payload = [];
+      rows.forEach(row => {
+        const chk = row.querySelector(".chk-item");
+        if (!chk.checked) return;
+        payload.push({ rowIndex: Number(chk.value), rubrica: row.querySelector(".rubrica-input").value.trim() });
+      });
+      if (payload.length === 0) return alert("Nenhum item selecionado.");
+      google.script.run.withSuccessHandler(() => google.script.host.close()).PRO_REVIEW_confirm(payload);
+    }
+
+    let currentSort = { col: -1, dir: 'asc' };
+    function sortTable(colIndex, type) {
+      const tbody = document.getElementById("table-body");
+      const rows = Array.from(tbody.rows);
+      const dir = (currentSort.col === colIndex && currentSort.dir === 'asc') ? 'desc' : 'asc';
+      currentSort = { col: colIndex, dir: dir };
+      rows.sort((a, b) => {
+        let valA = getCellValue(a, colIndex, type), valB = getCellValue(b, colIndex, type);
+        return (valA < valB ? -1 : 1) * (dir === 'asc' ? 1 : -1);
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    }
+
+    function getCellValue(row, index, type) {
+      const cell = row.cells[index];
+      let value = cell.getAttribute("data-val") || cell.querySelector('input')?.value || cell.innerText;
+      return (type === "number" || type === "date") ? Number(value) : value.toLowerCase();
+    }
+
+    let lastClickedRow = null;
+    document.querySelectorAll("#table-body tr").forEach(row => {
+      row.addEventListener("click", (e) => {
+        if (e.target.tagName === "INPUT") return;
+        const checkbox = row.querySelector(".chk-item");
+        if (e.shiftKey && lastClickedRow) {
+          selectInterval(lastClickedRow, row);
+        } else {
+          checkbox.checked = !checkbox.checked;
+          updateRowSelection(row, checkbox.checked);
+          lastClickedRow = row;
+        }
+        updateSelectedCounter();
+      });
+    });
+
+    function updateRowSelection(row, isSelected) {
+      if (isSelected) row.classList.add("selected-row"); else row.classList.remove("selected-row");
+    }
+
+    function selectInterval(start, end) {
+      const rows = Array.from(document.querySelectorAll("#table-body tr"));
+      const a = rows.indexOf(start), b = rows.indexOf(end);
+      for (let i = Math.min(a,b); i <= Math.max(a,b); i++) {
+        rows[i].querySelector(".chk-item").checked = true;
+        updateRowSelection(rows[i], true);
+      }
+    }
+  </script>
+</body>
+</html>
